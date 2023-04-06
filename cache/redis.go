@@ -2,8 +2,9 @@ package cache
 
 import (
 	"errors"
-	"github.com/go-redis/redis/v8"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type (
@@ -15,13 +16,12 @@ type (
 )
 
 var (
-	MaxRetries         = 3
-	DialTimeout        = 100 * time.Millisecond
-	ReadWriteTimeout   = 100 * time.Millisecond
-	PoolSize           = 200
-	PoolTimeout        = 100 * time.Millisecond
-	IdleTimeout        = 60 * time.Minute
-	IdleCheckFrequency = time.Minute
+	MaxRetries       = 3
+	DialTimeout      = 100 * time.Millisecond
+	ReadWriteTimeout = 100 * time.Millisecond
+	PoolSize         = 200
+	PoolTimeout      = 100 * time.Millisecond
+	IdleTimeout      = 60 * time.Minute
 
 	defaultAddr   string
 	defaultClient *Cache
@@ -35,10 +35,9 @@ func NewClient(addr string) *Cache {
 		ReadTimeout:  ReadWriteTimeout,
 		WriteTimeout: ReadWriteTimeout,
 
-		PoolSize:           PoolSize,
-		PoolTimeout:        PoolTimeout,
-		IdleTimeout:        IdleTimeout,
-		IdleCheckFrequency: IdleCheckFrequency,
+		PoolSize:        PoolSize,
+		PoolTimeout:     PoolTimeout,
+		ConnMaxIdleTime: IdleTimeout,
 	}
 
 	return NewClientByRedisCli(redis.NewClient(opts))

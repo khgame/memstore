@@ -4,10 +4,30 @@ import (
 	"context"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 type Prefix string
+
+func (p Prefix) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (p Prefix) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		p.AssembleCMD(cmd)
+		return next(ctx, cmd)
+	}
+}
+
+func (p Prefix) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		for _, cmd := range cmds {
+			p.AssembleCMD(cmd)
+		}
+		return next(ctx, cmds)
+	}
+}
 
 var _ redis.Hook = Prefix("")
 
@@ -29,26 +49,6 @@ func (p Prefix) ColonStr() string {
 
 func (p Prefix) MakeKey(key string) string {
 	return p.ColonStr() + key
-}
-
-func (p Prefix) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
-	p.AssembleCMD(cmd)
-	return ctx, nil
-}
-
-func (p Prefix) AfterProcess(ctx context.Context, cmd redis.Cmder) error {
-	return nil
-}
-
-func (p Prefix) BeforeProcessPipeline(ctx context.Context, cmds []redis.Cmder) (context.Context, error) {
-	for _, cmd := range cmds {
-		p.AssembleCMD(cmd)
-	}
-	return ctx, nil
-}
-
-func (p Prefix) AfterProcessPipeline(ctx context.Context, cmds []redis.Cmder) error {
-	return nil
 }
 
 func (p Prefix) AssembleCMD(cmd redis.Cmder) redis.Cmder {

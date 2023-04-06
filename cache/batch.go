@@ -6,38 +6,41 @@ import (
 	"time"
 
 	"github.com/bagaking/goulp/jsonex"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
+
 	"golang.org/x/sync/errgroup"
 )
 
+// PipeGet get values from redis by pipeline
 func (cli *Cache) PipeGet(ctx context.Context, keys ...string) (valuesHit []string, keysMiss []string, err error) {
-	if len(keys) == 0 {
+	lKeys := len(keys)
+	if lKeys == 0 {
 		return nil, nil, nil
 	}
 
+	cmders := make([]*redis.StringCmd, 0, lKeys)
 	pipe := cli.Client.Pipeline()
-	defer pipe.Close()
-
-	cmds := make(map[string]*redis.StringCmd, len(keys))
 	for _, key := range keys {
-		cmds[key] = pipe.Get(ctx, key)
+		cmders = append(cmders, pipe.Get(ctx, key))
 	}
 
-	if _, err = pipe.Exec(ctx); err != nil {
+	// exec pipeline and get results of all commands
+	if _, err = pipe.Exec(ctx); err != nil && err != redis.Nil {
 		return nil, nil, err
 	}
 
-	hit, miss := make([]string, 0, len(keys)), make([]string, 0, len(keys))
-	for k, cmd := range cmds {
-		value, errCmd := cmd.Result()
-		if errCmd != nil {
+	hit, miss := make([]string, 0, lKeys), make([]string, 0)
+	for i, cmd := range cmders {
+		// check error, if error is redis.Nil, then record the key as miss
+		if errCmd := cmd.Err(); errCmd != nil {
 			if IsRedisNil(errCmd) {
-				miss = append(miss, k)
+				miss = append(miss, keys[i])
 				continue
 			}
 			return nil, nil, err
 		}
-		hit = append(hit, value)
+		// record the value as hit
+		hit = append(hit, cmd.Val())
 	}
 
 	return hit, miss, nil
@@ -80,16 +83,24 @@ func (cli *Cache) BatchGet(ctx context.Context, shotLimit int, keys ...string) (
 	return
 }
 
+// BatchSave save data to redis in batch
 func (cli *Cache) BatchSave(ctx context.Context, forEachReceiver func(fn func(key string, v any) error) error, expiration time.Duration) error {
 	// create pipeline
 	p := cli.Pipeline()
 	dataLen := 0
 	err := forEachReceiver(func(key string, v any) error {
-		ret, err := jsonex.Marshal(v)
-		if err != nil {
-			return err
+		var ret string
+		if str, ok := v.(string); ok {
+			ret = str
+		} else {
+			bytes, err := jsonex.Marshal(v)
+			if err != nil {
+				return err
+			}
+			ret = string(bytes)
 		}
-		p.Set(ctx, key, string(ret), expiration)
+
+		p.Set(ctx, key, ret, expiration)
 		dataLen += len(key) + len(ret)
 		// send data to redis, if dataLen > 500k
 		if dataLen > 512*1024 {

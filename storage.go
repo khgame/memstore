@@ -1,7 +1,7 @@
 package memstore
 
 import "context"
- 
+
 type (
 	// Storage is an interface that all storage implementations must implement
 	Storage[DataType StorableType] interface {

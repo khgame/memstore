@@ -1,8 +1,9 @@
 package memstore
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type (
@@ -31,7 +32,7 @@ func Test_InMemStorage_SetGetListDelete(t *testing.T) {
 	})
 
 	// test Get
-	var data = TestDataType{
+	data := TestDataType{
 		Name: "res001",
 	}
 	err := storage.Get("uid001", &data)
