@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/bagaking/goulp/jsonex"
+
 	"github.com/alicebob/miniredis"
 	"github.com/khgame/memstore/cache"
 	"github.com/stretchr/testify/assert"
@@ -77,9 +79,9 @@ func Test_BatchSave(t *testing.T) {
 	}
 
 	// test BatchSave
-	err := cache.BatchSave(ctx, func(fn func(key string, v any) error) error {
+	err := cache.BatchSave(ctx, func(fn func(key, v string) error) error {
 		for k, v := range testMap {
-			err := fn(k, v)
+			err := fn(k, jsonex.MustMarshalToString(v))
 			if err != nil {
 				return err
 			}
@@ -93,9 +95,9 @@ func Test_BatchSave(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(valuesHit))
 	assert.Equal(t, 0, len(keysMiss))
-	assert.Equal(t, "res001", valuesHit[0])
-	assert.Equal(t, "res002", valuesHit[1])
-	assert.Equal(t, "res003", valuesHit[2])
-	assert.Equal(t, "1", valuesHit[3])
+	assert.Equal(t, jsonex.MustMarshalToString("res001"), valuesHit[0])
+	assert.Equal(t, jsonex.MustMarshalToString("res002"), valuesHit[1])
+	assert.Equal(t, jsonex.MustMarshalToString("res003"), valuesHit[2])
+	assert.Equal(t, jsonex.MustMarshalToString(1), valuesHit[3])
 	assert.Equal(t, "{\"Name\":\"res005\"}", valuesHit[4])
 }

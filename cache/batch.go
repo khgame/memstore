@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bagaking/goulp/jsonex"
 	"github.com/redis/go-redis/v9"
 
 	"golang.org/x/sync/errgroup"
@@ -84,24 +83,13 @@ func (cli *Cache) BatchGet(ctx context.Context, shotLimit int, keys ...string) (
 }
 
 // BatchSave save data to redis in batch
-func (cli *Cache) BatchSave(ctx context.Context, forEachReceiver func(fn func(key string, v any) error) error, expiration time.Duration) error {
+func (cli *Cache) BatchSave(ctx context.Context, forEachReceiver func(fn func(key, v string) error) error, expiration time.Duration) error {
 	// create pipeline
 	p := cli.Pipeline()
 	dataLen := 0
-	err := forEachReceiver(func(key string, v any) error {
-		var ret string
-		if str, ok := v.(string); ok {
-			ret = str
-		} else {
-			bytes, err := jsonex.Marshal(v)
-			if err != nil {
-				return err
-			}
-			ret = string(bytes)
-		}
-
-		p.Set(ctx, key, ret, expiration)
-		dataLen += len(key) + len(ret)
+	err := forEachReceiver(func(key, v string) error {
+		p.Set(ctx, key, v, expiration)
+		dataLen += len(key) + len(v) + 6
 		// send data to redis, if dataLen > 500k
 		if dataLen > 512*1024 {
 			_, e2 := p.Exec(ctx)

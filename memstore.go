@@ -198,12 +198,14 @@ func (s *InMemoryStorage[DataType]) Save(ctx context.Context) error {
 		return nil
 	}
 
-	// if the dumper is set, dump the data to permanent storage
-	if s.Dumper != nil {
-		// dump the data to permanent storage
-		if err := s.Dumper.Dump(ctx, s.StorageName, s.data); err != nil {
-			return fmt.Errorf("failed to dump data to permanent storage, err: %w", err)
-		}
+	// if the dumper is not set, return an error
+	if s.Dumper == nil {
+		return fmt.Errorf("%w, dumper is not set", ErrStatusError)
+	}
+
+	// dump the data to permanent storage
+	if err := s.Dumper.Dump(ctx, s.StorageName, s.data); err != nil {
+		return fmt.Errorf("failed to dump data to permanent storage, err: %w", err)
 	}
 
 	// mark the storage as clean
@@ -225,9 +227,9 @@ func (s *InMemoryStorage[DataType]) Load(ctx context.Context) error {
 		return fmt.Errorf("%w, cannot load data when storage is dirty", ErrStatusError)
 	}
 
-	// if the dumper is not set, do nothing
+	// if the dumper is not set, return an error
 	if s.Dumper == nil {
-		return nil
+		return fmt.Errorf("%w, dumper is not set", ErrStatusError)
 	}
 
 	// load the data from permanent storage

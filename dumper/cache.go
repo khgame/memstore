@@ -2,6 +2,9 @@ package dumper
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/bagaking/goulp/jsonex"
 
 	"github.com/redis/go-redis/v9"
 
@@ -13,7 +16,7 @@ type (
 	// CacheDumper - a memory store saving algorithm
 	// should implement the memstore.Dumper[T any] interface
 	CacheDumper[T any] struct {
-		c *cache.Cache
+		Cache *cache.Cache
 	}
 )
 
@@ -31,7 +34,7 @@ func CreateCacheDumperByAddr[T any](addr string) *CacheDumper[T] {
 // CreateCacheDumperByCacheInstance - create a CacheDumper algorithm instance of given type T
 func CreateCacheDumperByCacheInstance[T any](c *cache.Cache) *CacheDumper[T] {
 	return &CacheDumper[T]{
-		c: c,
+		Cache: c,
 	}
 }
 
@@ -48,10 +51,14 @@ func (m *CacheDumper[T]) Dump(ctx context.Context, storageName string, data map[
 
 	// use pipeline to save data, group by data length
 	// set expire time to forever
-	err := m.c.BatchSave(ctx,
-		func(fn func(key string, v any) error) error {
+	err := m.Cache.BatchSave(ctx,
+		func(fn func(key, v string) error) error {
 			for uid, v := range data {
-				if err := fn(makeKey(uid), v); err != nil {
+				str, err := jsonex.Marshal(v)
+				if err != nil {
+					return err
+				}
+				if err = fn(makeKey(uid), string(str)); err != nil {
 					return err
 				}
 				keysLst = append(keysLst, uid)
@@ -62,7 +69,12 @@ func (m *CacheDumper[T]) Dump(ctx context.Context, storageName string, data map[
 		return err
 	}
 
-	return m.c.Set(ctx, makeKey("__index"), keysLst, 0).Err()
+	// marshal the key list
+	strLst, err := jsonex.Marshal(keysLst)
+	if err != nil {
+		return err
+	}
+	return m.Cache.Set(ctx, makeKey("__index"), strLst, 0).Err()
 }
 
 // Load - load the data from the cache
@@ -71,19 +83,26 @@ func (m *CacheDumper[T]) Load(ctx context.Context, storageName string, data *map
 
 	// load index
 	var keys []string
-	m.c.Get(ctx, makeKey("__index")).Scan(&keys)
+	cmd := m.Cache.Get(ctx, makeKey("__index"))
+	if err := cmd.Err(); err != nil {
+		return fmt.Errorf("get index of storage %s error: %w", storageName, err)
+	}
+	if err := jsonex.Unmarshal([]byte(cmd.Val()), &keys); err != nil {
+		return fmt.Errorf("unmarshal index of storage %s error: %w", storageName, err)
+	}
 
 	// load data
 	for _, uid := range keys {
-		get := m.c.Get(ctx, makeKey(uid))
+		get := m.Cache.Get(ctx, makeKey(uid))
 		if err := get.Err(); err != nil {
 			return err
 		}
 		var v memstore.DataMap[T]
-		if err := get.Scan(&v); err != nil {
+		if err := jsonex.Unmarshal([]byte(get.Val()), &v); err != nil {
 			return err
 		}
 		(*data)[uid] = v
 	}
+	fmt.Println("data", jsonex.MustMarshalToString(data))
 	return nil
 }
