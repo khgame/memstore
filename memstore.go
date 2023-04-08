@@ -43,8 +43,8 @@ type (
 
 	// InMemoryStorage is an in-memory implementation of Storage
 	InMemoryStorage[TData StorableType] struct {
-		// PermanentKey is the permanent key of the storage
-		PermanentKey string
+		// PersistentKey is the permanent key of the storage
+		PersistentKey string
 
 		// mu is a mutex that protects the data map
 		mu sync.RWMutex
@@ -62,10 +62,10 @@ type (
 )
 
 // NewInMemoryStorage creates a new instance of InMemoryResourceStorage
-func NewInMemoryStorage[TData StorableType](storageName string) *InMemoryStorage[TData] {
+func NewInMemoryStorage[TData StorableType](persistentKey string) *InMemoryStorage[TData] {
 	return &InMemoryStorage[TData]{
-		PermanentKey: storageName,
-		data:         make(map[UID]DataMap[TData]),
+		PersistentKey: persistentKey,
+		data:          make(map[UID]DataMap[TData]),
 	}
 }
 
@@ -183,7 +183,8 @@ func (s *InMemoryStorage[TData]) Update(user string, storeName string, updateFn 
 		err error
 	)
 	// get the resource, if it's not there, rp will be nil
-	if res, ok := r[storeName]; ok {
+	res, exist := r[storeName]
+	if exist {
 		rp = &res
 	}
 	// update the resource
@@ -192,7 +193,9 @@ func (s *InMemoryStorage[TData]) Update(user string, storeName string, updateFn 
 	}
 	// if the resource is nil, delete it
 	if rp == nil {
-		delete(r, storeName)
+		if exist {
+			delete(r, storeName)
+		}
 		return nil
 	}
 	// store the resource
@@ -257,7 +260,7 @@ func (s *InMemoryStorage[TData]) Save(ctx context.Context) error {
 	}
 
 	// dump the data to permanent storage
-	if err := s.Dumper.Dump(ctx, s.PermanentKey, s.data); err != nil {
+	if err := s.Dumper.Dump(ctx, s.PersistentKey, s.data); err != nil {
 		return fmt.Errorf("failed to dump data to permanent storage, err: %w", err)
 	}
 
@@ -286,7 +289,7 @@ func (s *InMemoryStorage[TData]) Load(ctx context.Context) error {
 	}
 
 	// load the data from permanent storage
-	if err := s.Dumper.Load(ctx, s.PermanentKey, &s.data); err != nil {
+	if err := s.Dumper.Load(ctx, s.PersistentKey, &s.data); err != nil {
 		return fmt.Errorf("failed to load data from permanent storage, err: %w", err)
 	}
 
