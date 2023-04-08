@@ -12,6 +12,10 @@ type (
 
 		// Set sets a resource for a given user
 		Set(user string, in *DataType) error
+
+		// Update updates a resource for a given user, using the updateFn
+		// to ensure that the resource is updated atomically (CAS)
+		Update(user string, storeName string, updateFn func(org *DataType) (updated *DataType, err error)) error
 		// Delete deletes a resource for a given user
 		Delete(user string, storeName string) error
 

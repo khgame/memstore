@@ -19,6 +19,8 @@ var (
 	ErrInvalidUser = fmt.Errorf("invalid user")
 	// ErrStatusError is returned when the status is invalid
 	ErrStatusError = fmt.Errorf("status error")
+
+	_ Storage[StorableType] = NewInMemoryStorage[StorableType]("")
 )
 
 type (
@@ -59,15 +61,15 @@ type (
 )
 
 // NewInMemoryStorage creates a new instance of InMemoryResourceStorage
-func NewInMemoryStorage[DataType StorableType](storageName string) *InMemoryStorage[DataType] {
-	return &InMemoryStorage[DataType]{
+func NewInMemoryStorage[TData StorableType](storageName string) *InMemoryStorage[TData] {
+	return &InMemoryStorage[TData]{
 		StorageName: storageName,
-		data:        make(map[UID]DataMap[DataType]),
+		data:        make(map[UID]DataMap[TData]),
 	}
 }
 
 // Get retrieves a resource for a given user
-func (s *InMemoryStorage[DataType]) Get(user string, out *DataType) error {
+func (s *InMemoryStorage[TData]) Get(user string, out *TData) error {
 	// validate input
 	if user == "" {
 		return fmt.Errorf("%w, user cannot be empty", ErrInvalidUser)
@@ -93,7 +95,7 @@ func (s *InMemoryStorage[DataType]) Get(user string, out *DataType) error {
 }
 
 // List retrieves all resources' StoreName() for a given user
-func (s *InMemoryStorage[DataType]) List(user UID) ([]string, error) {
+func (s *InMemoryStorage[TData]) List(user UID) ([]string, error) {
 	// validate input
 	if user == "" {
 		return nil, fmt.Errorf("%w, user cannot be empty", ErrInvalidUser)
@@ -118,7 +120,7 @@ func (s *InMemoryStorage[DataType]) List(user UID) ([]string, error) {
 }
 
 // Set stores a resource for a given user
-func (s *InMemoryStorage[DataType]) Set(user string, in *DataType) error {
+func (s *InMemoryStorage[TData]) Set(user string, in *TData) error {
 	// validate input
 	if user == "" {
 		return fmt.Errorf("%w, user cannot be empty", ErrInvalidUser)
@@ -138,7 +140,7 @@ func (s *InMemoryStorage[DataType]) Set(user string, in *DataType) error {
 	// get the resources of the user
 	r, ok := s.data[user]
 	if !ok {
-		r = make(DataMap[DataType])
+		r = make(DataMap[TData])
 		s.data[user] = r
 	}
 
@@ -148,8 +150,58 @@ func (s *InMemoryStorage[DataType]) Set(user string, in *DataType) error {
 	return nil
 }
 
+// Update updates a resource for a given user
+func (s *InMemoryStorage[TData]) Update(user string, storeName string, updateFn func(*TData) (*TData, error)) error {
+	// validate input
+	if user == "" {
+		return fmt.Errorf("%w, user cannot be empty", ErrInvalidUser)
+	}
+	if storeName == "" {
+		return fmt.Errorf("%w, storeName cannot be empty", ErrInvalidInput)
+	}
+	if updateFn == nil {
+		return fmt.Errorf("%w, updateFn cannot be nil", ErrInvalidInput)
+	}
+	// lock the mutex
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// mark the storage as dirty
+	s.dirty = true
+
+	// get the resources of the user
+	r, ok := s.data[user]
+	if !ok {
+		// upsert the user
+		r = make(DataMap[TData])
+		s.data[user] = r
+	}
+
+	var (
+		rp  *TData
+		err error
+	)
+	// get the resource, if it's not there, rp will be nil
+	if res, ok := r[storeName]; ok {
+		rp = &res
+	}
+	// update the resource
+	if rp, err = updateFn(rp); err != nil {
+		return err
+	}
+	// if the resource is nil, delete it
+	if rp == nil {
+		delete(r, storeName)
+		return nil
+	}
+	// store the resource
+	r[storeName] = *rp
+
+	return nil
+}
+
 // Delete deletes a resource for a given user
-func (s *InMemoryStorage[DataType]) Delete(user string, storeName string) error {
+func (s *InMemoryStorage[TData]) Delete(user string, storeName string) error {
 	// validate input
 	if user == "" {
 		return fmt.Errorf("%w, user cannot be empty", ErrInvalidUser)
@@ -178,7 +230,7 @@ func (s *InMemoryStorage[DataType]) Delete(user string, storeName string) error 
 }
 
 // IsDirty returns true if the storage has been modified since
-func (s *InMemoryStorage[DataType]) IsDirty() bool {
+func (s *InMemoryStorage[TData]) IsDirty() bool {
 	// lock the mutex
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -188,7 +240,7 @@ func (s *InMemoryStorage[DataType]) IsDirty() bool {
 
 // Save persists the storage to permanent storage
 // if the storage is not dirty, this function does nothing
-func (s *InMemoryStorage[DataType]) Save(ctx context.Context) error {
+func (s *InMemoryStorage[TData]) Save(ctx context.Context) error {
 	// lock the mutex
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -217,7 +269,7 @@ func (s *InMemoryStorage[DataType]) Save(ctx context.Context) error {
 }
 
 // Load loads the storage from permanent storage
-func (s *InMemoryStorage[DataType]) Load(ctx context.Context) error {
+func (s *InMemoryStorage[TData]) Load(ctx context.Context) error {
 	// lock the mutex
 	s.mu.Lock()
 	defer s.mu.Unlock()

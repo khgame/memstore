@@ -27,8 +27,8 @@ func createCacheDumper() memstore.Dumper[TestDataType] {
 	return dumper.CreateCacheDumperByAddr[TestDataType](mini.Addr())
 }
 
-// Test_Dump tests the Dump method of CacheDumper with testify
-func Test_Dump(t *testing.T) {
+// Test_DumpAndLoad tests the Dump method of CacheDumper with testify
+func Test_DumpAndLoad(t *testing.T) {
 	dp := createCacheDumper()
 	ctx := context.Background()
 	err := dp.Dump(ctx, "test_storage", map[memstore.UID]memstore.DataMap[TestDataType]{
@@ -49,4 +49,21 @@ func Test_Dump(t *testing.T) {
 	cmd := dp.(*dumper.CacheDumper[TestDataType]).Cache.Get(ctx, dumper.SchemeMemStoreSaving.Make("test_storage", "uid001"))
 	assert.NoError(t, cmd.Err())
 	assert.Equal(t, `{"res001":{"Name":"res001","Quantity":1},"res002":{"Name":"res002","Quantity":200}}`, cmd.Val())
+
+	// load
+	data := map[memstore.UID]memstore.DataMap[TestDataType]{}
+	err = dp.Load(ctx, "test_storage", &data)
+	assert.NoError(t, err)
+	assert.Equal(t, map[memstore.UID]memstore.DataMap[TestDataType]{
+		"uid001": {
+			"res001": {
+				Name:     "res001",
+				Quantity: 1,
+			},
+			"res002": {
+				Name:     "res002",
+				Quantity: 200,
+			},
+		},
+	}, data)
 }

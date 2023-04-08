@@ -123,4 +123,5 @@ func Test_InMemStorage_SaveLoad(t *testing.T) {
 	assert.Equal(t, 2, len(resources))
 	assert.Equal(t, "res001", resources[0])
 	assert.Equal(t, "res002", resources[1])
+
 }
