@@ -36,14 +36,15 @@ type (
 	// or loads data from a permanent storage to memory
 	Dumper[T any] interface {
 		// Dump dumps memory data to a permanent storage
-		Dump(ctx context.Context, storageName string, data map[UID]DataMap[T]) error
+		Dump(ctx context.Context, permanentKey string, data map[UID]DataMap[T]) error
 		// Load loads data from a permanent storage to memory
-		Load(ctx context.Context, storageName string, out *map[UID]DataMap[T]) error
+		Load(ctx context.Context, permanentKey string, out *map[UID]DataMap[T]) error
 	}
 
 	// InMemoryStorage is an in-memory implementation of Storage
 	InMemoryStorage[TData StorableType] struct {
-		StorageName string
+		// PermanentKey is the permanent key of the storage
+		PermanentKey string
 
 		// mu is a mutex that protects the data map
 		mu sync.RWMutex
@@ -63,8 +64,8 @@ type (
 // NewInMemoryStorage creates a new instance of InMemoryResourceStorage
 func NewInMemoryStorage[TData StorableType](storageName string) *InMemoryStorage[TData] {
 	return &InMemoryStorage[TData]{
-		StorageName: storageName,
-		data:        make(map[UID]DataMap[TData]),
+		PermanentKey: storageName,
+		data:         make(map[UID]DataMap[TData]),
 	}
 }
 
@@ -256,7 +257,7 @@ func (s *InMemoryStorage[TData]) Save(ctx context.Context) error {
 	}
 
 	// dump the data to permanent storage
-	if err := s.Dumper.Dump(ctx, s.StorageName, s.data); err != nil {
+	if err := s.Dumper.Dump(ctx, s.PermanentKey, s.data); err != nil {
 		return fmt.Errorf("failed to dump data to permanent storage, err: %w", err)
 	}
 
@@ -285,7 +286,7 @@ func (s *InMemoryStorage[TData]) Load(ctx context.Context) error {
 	}
 
 	// load the data from permanent storage
-	if err := s.Dumper.Load(ctx, s.StorageName, &s.data); err != nil {
+	if err := s.Dumper.Load(ctx, s.PermanentKey, &s.data); err != nil {
 		return fmt.Errorf("failed to load data from permanent storage, err: %w", err)
 	}
 

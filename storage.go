@@ -31,6 +31,8 @@ type (
 
 	// StorableType is an interface that all types that can be stored must implement
 	StorableType interface {
+		// StoreName the name in the users' storage, must be unique in a storage
+		// only used for set/get in the users data, not for persisting usage (save/load)
 		StoreName() string
 	}
 )

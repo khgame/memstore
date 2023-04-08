@@ -44,8 +44,8 @@ func CreateCacheDumperByRedisInstance[T any](c *redis.Client) *CacheDumper[T] {
 }
 
 // Dump - dump the data to the cache
-func (m *CacheDumper[T]) Dump(ctx context.Context, storageName string, data map[memstore.UID]memstore.DataMap[T]) error {
-	makeKey := SchemeMemStoreSaving.Partial(storageName)
+func (m *CacheDumper[T]) Dump(ctx context.Context, permanentKey string, data map[memstore.UID]memstore.DataMap[T]) error {
+	makeKey := SchemeMemStoreSaving.Partial(permanentKey)
 
 	keysLst := make([]string, 0, len(data))
 
@@ -78,17 +78,17 @@ func (m *CacheDumper[T]) Dump(ctx context.Context, storageName string, data map[
 }
 
 // Load - load the data from the cache
-func (m *CacheDumper[T]) Load(ctx context.Context, storageName string, data *map[memstore.UID]memstore.DataMap[T]) error {
-	makeKey := SchemeMemStoreSaving.Partial(storageName)
+func (m *CacheDumper[T]) Load(ctx context.Context, permanentKey string, data *map[memstore.UID]memstore.DataMap[T]) error {
+	makeKey := SchemeMemStoreSaving.Partial(permanentKey)
 
 	// load index
 	var keys []string
 	cmd := m.Cache.Get(ctx, makeKey("__index"))
 	if err := cmd.Err(); err != nil {
-		return fmt.Errorf("get index of storage %s error: %w", storageName, err)
+		return fmt.Errorf("get index of storage %s error: %w", permanentKey, err)
 	}
 	if err := jsonex.Unmarshal([]byte(cmd.Val()), &keys); err != nil {
-		return fmt.Errorf("unmarshal index of storage %s error: %w", storageName, err)
+		return fmt.Errorf("unmarshal index of storage %s error: %w", permanentKey, err)
 	}
 
 	// load data
@@ -103,6 +103,6 @@ func (m *CacheDumper[T]) Load(ctx context.Context, storageName string, data *map
 		}
 		(*data)[uid] = v
 	}
-	fmt.Println("data", jsonex.MustMarshalToString(data))
+
 	return nil
 }

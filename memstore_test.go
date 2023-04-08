@@ -23,13 +23,13 @@ func (t TestDataType) StoreName() string {
 	return t.Name
 }
 
-func createCacheDumper() memstore.Dumper[TestDataType] {
+func createCacheDumper[T memstore.StorableType]() memstore.Dumper[T] {
 	// create mini redis server
 	mini, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
-	return dumper.CreateCacheDumperByAddr[TestDataType](mini.Addr())
+	return dumper.CreateCacheDumperByAddr[T](mini.Addr())
 }
 
 // Test_InMemStorage_SetGetListDelete tests the Get / Set / List / Delete method of InMemStorage with testify
@@ -73,7 +73,7 @@ func Test_InMemStorage_SetGetListDelete(t *testing.T) {
 // Test_InMemStorage_SaveLoad tests the Save & Load method of InMemStorage with testify
 func Test_InMemStorage_SaveLoad(t *testing.T) {
 	storage := memstore.NewInMemoryStorage[TestDataType]("test_storage")
-	storage.Dumper = createCacheDumper()
+	storage.Dumper = createCacheDumper[TestDataType]()
 	// test Set
 	storage.Set("uid001", &TestDataType{
 		Name:     "res001",
@@ -123,5 +123,4 @@ func Test_InMemStorage_SaveLoad(t *testing.T) {
 	assert.Equal(t, 2, len(resources))
 	assert.Equal(t, "res001", resources[0])
 	assert.Equal(t, "res002", resources[1])
-
 }
