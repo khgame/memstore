@@ -8,8 +8,6 @@ import (
 )
 
 var (
-	// ErrResourceNotFound is returned when a resource is not found
-	ErrResourceNotFound = fmt.Errorf("resource not found")
 	// ErrUserNotFound is returned when a user is not found
 	ErrUserNotFound = fmt.Errorf("user not found")
 
@@ -108,7 +106,7 @@ func (s *InMemoryStorage[TData]) List(user UID) ([]string, error) {
 	// get the resources of the user
 	res, ok := s.data[user]
 	if !ok {
-		return nil, fmt.Errorf("%w, user: %s", ErrResourceNotFound, user)
+		return nil, fmt.Errorf("%w, user: %s", ErrUserNotFound, user)
 	}
 
 	// get the resource names
