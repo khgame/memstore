@@ -1,0 +1,7 @@
+entry = [
+    "./**/*.go"
+]
+
+exclude = [
+    ".bundle.txt",
+]

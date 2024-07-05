@@ -4,6 +4,8 @@ import (
 	"errors"
 	"time"
 
+	prefix2 "github.com/khgame/memstore/prefix"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -54,7 +56,7 @@ func NewPrefixedCli(prefix string) *Cache {
 		return defaultClient
 	}
 	c := NewClient(defaultAddr)
-	KeyPrefix := Prefix(Prefix(prefix).ColonStr())
+	KeyPrefix := prefix2.Prefix(prefix2.Prefix(prefix).ColonStr())
 	c.AddHook(KeyPrefix)
 	return c
 }
