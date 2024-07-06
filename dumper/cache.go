@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/khgame/memstore/cachekey"
+
 	"github.com/bagaking/goulp/jsonex"
 
 	"github.com/redis/go-redis/v9"
@@ -21,7 +23,7 @@ type (
 )
 
 const (
-	SchemeMemStoreSaving memstore.KeyScheme = "store:%s:%s"
+	SchemeMemStoreSaving cachekey.KeyFormat = "store:%s:%s"
 )
 
 var _ memstore.Dumper[any] = (*CacheDumper[any])(nil)

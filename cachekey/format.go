@@ -1,4 +1,4 @@
-package memstore
+package cachekey
 
 import (
 	"fmt"
@@ -6,16 +6,14 @@ import (
 )
 
 type (
-	H map[string]any
-
-	// KeyScheme
+	// KeyFormat
 	//
 	// Usage:
 	//
 	// General Way
 	//
 	// CacheSchemaFTPackage : combined with accountID, appID, name
-	// CacheSchemaFTPackage cache.KeyScheme = "pockets:ft:%v:%v:%s"
+	// CacheSchemaFTPackage cache.KeyFormat = "pockets:ft:%v:%v:%s"
 	// CacheSchemaFTPackage.Make(accountID, appID, name)
 	//
 	// Partial Example
@@ -25,28 +23,28 @@ type (
 	// }
 	// delegate.Func2[int64, string, string](p.cacheKey).Partial(accountID)
 	// ```
-	KeyScheme string
+	KeyFormat string
 )
 
 // Make returns a string with args formatted by fmt.Sprintf
-func (ck KeyScheme) Make(args ...any) string {
+func (ck KeyFormat) Make(args ...any) string {
 	return fmt.Sprintf(string(ck), args...)
 }
 
 // Split returns a list that contains all parts of the key scheme
-func (ck KeyScheme) Split() []string {
+func (ck KeyFormat) Split() []string {
 	return strings.Split(string(ck), ":")
 }
 
 // Partial returns a function that accepts the rest of args and returns a string
-func (ck KeyScheme) Partial(args ...any) func(...any) string {
+func (ck KeyFormat) Partial(args ...any) func(...any) string {
 	return func(rest ...any) string {
 		return ck.Make(append(args, rest...)...)
 	}
 }
 
 // Test - placeholder must after the colon
-func (ck KeyScheme) Test() bool {
+func (ck KeyFormat) Test() bool {
 	// find all placeholders
 	for i, c := range ck {
 		if c == '%' {

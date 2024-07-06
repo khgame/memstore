@@ -39,36 +39,27 @@ func (p Prefix) AssembleCMD(cmd redis.Cmder) redis.Cmder {
 
 	switch c := strings.ToLower(cmd.Name()); c {
 	case "mset", "msetnx":
-		// MSET key1 value1 [key2 value2 ...]
-		// MSETNX key1 value1 [key2 value2 ...]
-		// https://redis.io/commands/mset/
-		// https://redis.io/commands/msetnx/
+		// MSET key1 value1 [key2 value2 ...] -- https://redis.io/commands/mset/
+		// MSETNX key1 value1 [key2 value2 ...] -- https://redis.io/commands/msetnx/
 		for i := 1; i < lArgs; i += 2 {
 			if key, ok := args[i].(string); ok {
 				args[i] = p.MakeKey(key)
 			}
 		}
 	case "mget", "exists", "del", "unlink", "touch":
-		// MGET key [key ...]
-		// EXISTS key [key ...]
-		// DEL key [key ...]
-		// UNLINK key [key ...]
-		// TOUCH key [key ...]
-		// https://redis.io/commands/mget/
-		// https://redis.io/commands/exists/
-		// https://redis.io/commands/del/
-		// https://redis.io/commands/unlink/
-		// https://redis.io/commands/touch/
+		// MGET key [key ...] -- https://redis.io/commands/mget/
+		// EXISTS key [key ...] -- https://redis.io/commands/exists/
+		// DEL key [key ...] -- https://redis.io/commands/del/
+		// UNLINK key [key ...] -- https://redis.io/commands/unlink/
+		// TOUCH key [key ...] -- https://redis.io/commands/touch/
 		for i := 1; i < lArgs; i++ {
 			if key, ok := args[i].(string); ok {
 				args[i] = p.MakeKey(key)
 			}
 		}
 	case "rename", "renamenx":
-		// RENAME key newkey
-		// RENAMENX key newkey
-		// https://redis.io/commands/rename/
-		// https://redis.io/commands/renamenx/
+		// RENAME key newkey -- https://redis.io/commands/rename/
+		// RENAMENX key newkey -- https://redis.io/commands/renamenx/
 		if key, ok := args[1].(string); ok {
 			args[1] = p.MakeKey(key)
 		}
@@ -76,10 +67,8 @@ func (p Prefix) AssembleCMD(cmd redis.Cmder) redis.Cmder {
 			args[2] = p.MakeKey(key)
 		}
 	case "rpoplpush", "brpoplpush":
-		// RPOPLPUSH source destination
-		// BRPOPLPUSH source destination timeout
-		// https://redis.io/commands/rpoplpush/
-		// https://redis.io/commands/brpoplpush/
+		// RPOPLPUSH source destination -- https://redis.io/commands/rpoplpush/
+		// BRPOPLPUSH source destination timeout -- https://redis.io/commands/brpoplpush/
 		if key, ok := args[1].(string); ok {
 			args[1] = p.MakeKey(key)
 		}
@@ -87,12 +76,9 @@ func (p Prefix) AssembleCMD(cmd redis.Cmder) redis.Cmder {
 			args[2] = p.MakeKey(key)
 		}
 	case "sdiffstore", "sinterstore", "sunionstore":
-		// SDIFFSTORE destination key [key ...]
-		// SINTERSTORE destination key [key ...]
-		// SUNIONSTORE destination key [key ...]
-		// https://redis.io/commands/sdiffstore/
-		// https://redis.io/commands/sinterstore/
-		// https://redis.io/commands/sunionstore/
+		// SDIFFSTORE destination key [key ...] -- https://redis.io/commands/sdiffstore/
+		// SINTERSTORE destination key [key ...] -- https://redis.io/commands/sinterstore/
+		// SUNIONSTORE destination key [key ...] -- https://redis.io/commands/sunionstore/
 		for i := 1; i < lArgs; i++ {
 			if key, ok := args[i].(string); ok {
 				args[i] = p.MakeKey(key)

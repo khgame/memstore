@@ -1,0 +1,8 @@
+entry = [
+    "./cachekey/*.go",
+    "./cachekey/*.md"
+]
+
+exclude = [
+    ".bundle.txt",
+]
