@@ -1,32 +1,43 @@
 package cachekey
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/bagaking/goulp/jsonex"
-	"github.com/bagaking/goulp/wlog"
 	"github.com/khicago/got/util/typer"
+
+	"github.com/bagaking/goulp/wlog"
 	"github.com/khicago/irr"
 )
 
-const MAXPlaceHolders = 1000
+const (
+	cacheKeyTag     = "cachekey"
+	MAXPlaceHolders = 1000
+)
+
+var ErrSchemaValidateFailed = irr.Error("invalid schema for given type")
 
 // KeySchema used to build a real cache key
 //
-// Usage:
+// Standard Usages:
 //
-//	type A struct {
-//	    XXX string
-//	    YYY int
-//	}
+//  1. config with struct
+//     type A struct {
+//     XXX string `cachekey:"xxx_1"`
+//     YYY int
+//     }
+//     var ckb = MustNewSchema[A]("key:{xxx_1}:{yyy}:{xxx_1}", 10*time.Minute)
 //
-// var ckb = MustNewSchema[A]("key:{xxx}:{yyy}", 10*time.Minute)
+//  2. config with single value
+//     var ckb = MustNewSchema[int64]("key:{xxx_1}", 10*time.Minute)
 //
-// ... ckb.build()
+//  3. build cache key
+//     ckb.Build(A{XXX: "xxx", YYY: 1})
+//
+//  4. build cache key in dynamic way
+//     ckb.ToFormat().Make("xxx", 1, "xxx")
 type KeySchema[ParamsTable any] struct {
 	schema string
 	exp    time.Duration
@@ -44,45 +55,54 @@ func MustNewSchema[ParamsTable any](schema string, exp time.Duration) *KeySchema
 
 // NewSchema create new schema
 func NewSchema[ParamsTable any](schema string, exp time.Duration) (*KeySchema[ParamsTable], error) {
+	if !ValidateParamsType[ParamsTable](schema) {
+		return nil, irr.Wrap(ErrSchemaValidateFailed, "fields: %v", typer.Keys(StructToMap(typer.ZeroVal[ParamsTable]())))
+	}
 	ck := &KeySchema[ParamsTable]{
 		schema: schema,
 		exp:    exp,
 	}
-
-	if _, err := ck.Build(typer.ZeroVal[ParamsTable]()); err != nil {
-		return nil, err
-	}
 	return ck, nil
 }
 
-// Build 方法中应用驼峰转蛇形
+// FingerPrint returns a unique string for the schema
+func (ckb *KeySchema[ParamsTable]) FingerPrint() string {
+	return ckb.schema
+}
+
+// Build a real cache key
 func (ckb *KeySchema[ParamsTable]) Build(params ParamsTable) (string, error) {
 	var paramsMap map[string]any
-	var err error
 
-	// 检查 ParamsTable 是否为结构体或指向结构体的指针
 	t := reflect.TypeOf(params)
+	// if params is a struct, convert it to map
 	if t.Kind() == reflect.Struct || (t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct) {
-		// 如果是结构体或指向结构体的指针，使用现有的 structToMap 方法
-		paramsMap, err = structToMap(params)
-		if err != nil {
-			return "", err
+		paramsMap = make(map[string]any)
+		v := reflect.ValueOf(params)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
 		}
-	} else {
-		// 如果不是结构体，直接使用一个占位符替换
-		name, start, end, _ := getNextPlaceholder(ckb.schema, 0)
-		if start == -1 {
-			return "", irr.Error("schema %s has no placeholders", ckb.schema)
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			fieldName := getFieldName(field)
+			paramsMap[fieldName] = v.Field(i).Interface()
 		}
-		paramsMap = map[string]any{
-			name: fmt.Sprintf("%v", params),
-		}
-		_, start, _, _ = getNextPlaceholder(ckb.schema, end+1)
-		if start != -1 {
-			return "", irr.Error("value table not match, map= %v, params= %v", paramsMap, params)
-		}
+		return replacePlaceholders(ckb.schema, paramsMap)
 	}
 
+	// if params is a single value, convert it to single value map
+	name, start, end, _ := getNextPlaceholder(ckb.schema, 0)
+	if start == -1 {
+		return "", irr.Error("schema %s has no placeholders", ckb.schema)
+	}
+	paramsMap = map[string]any{
+		name: fmt.Sprintf("%v", params),
+	}
+	_, start, _, _ = getNextPlaceholder(ckb.schema, end+1)
+	if start != -1 {
+		return "", irr.Error("value table not match, map= %v, params= %v", paramsMap, params)
+	}
 	return replacePlaceholders(ckb.schema, paramsMap)
 }
 
@@ -120,7 +140,7 @@ func (ckb *KeySchema[ParamsTable]) ToFormat() KeyFormat {
 	for i := 0; i < MAXPlaceHolders; i++ {
 		_, start, end, err := getNextPlaceholder(schema, curBeginPos)
 		if err != nil {
-			wlog.Common("ToFormat").WithError(err).Errorf("Error parsing schema: %s", schema)
+			wlog.Common("to_format").WithError(err).Errorf("error parsing schema: %s", schema)
 			return KeyFormat(schema)
 		}
 		if start == -1 {
@@ -135,80 +155,4 @@ func (ckb *KeySchema[ParamsTable]) ToFormat() KeyFormat {
 	}
 
 	return KeyFormat(result.String())
-}
-
-func getPlaceholders(schema string) []string {
-	var placeholders []string
-	curBeginPos := 0
-	for i := 0; i < MAXPlaceHolders; i++ {
-		name, _, end, _ := getNextPlaceholder(schema, curBeginPos)
-		if end == -1 {
-			break
-		}
-		placeholders = append(placeholders, name)
-		curBeginPos = end + 1
-	}
-
-	return placeholders
-}
-
-// getNextPlaceholder finds the next placeholder in the schema and returns its name and the positions of the braces.
-func getNextPlaceholder(schema string, startPos int) (string, int, int, error) {
-	start := strings.Index(schema[startPos:], "{")
-	if start == -1 {
-		return "", -1, -1, nil
-	}
-	start += startPos
-
-	end := strings.Index(schema[start:], "}")
-	if end == -1 {
-		return "", -1, -1, errors.New("malformed schema: unclosed placeholder")
-	}
-	end += start
-
-	placeholderName := schema[start+1 : end]
-	return placeholderName, start, end, nil
-}
-
-// replacePlaceholders replaces placeholders in the schema with values from paramsMap.
-func replacePlaceholders(schema string, paramsMap map[string]any) (string, error) {
-	var result strings.Builder
-	curBeginPos := 0
-
-	for i := 0; i < MAXPlaceHolders; i++ {
-		placeholderName, start, end, err := getNextPlaceholder(schema, curBeginPos)
-		if err != nil {
-			return "", err
-		}
-		if start == -1 {
-			result.WriteString(schema[curBeginPos:])
-			break
-		}
-
-		result.WriteString(schema[curBeginPos:start])
-
-		fieldValue, exists := paramsMap[placeholderName]
-		if !exists {
-			return "", fmt.Errorf("field %s does not exist, paramsMap= %+v", placeholderName, paramsMap)
-		}
-		result.WriteString(fmt.Sprintf("%v", fieldValue))
-
-		curBeginPos = end + 1
-	}
-
-	return result.String(), nil
-}
-
-// structToMap 使用反射将结构体转换为映射
-func structToMap(item any) (map[string]any, error) {
-	str, err := jsonex.MarshalToString(item)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]any)
-	if err = jsonex.UnmarshalFromString(str, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
