@@ -17,7 +17,10 @@ const (
 	MAXPlaceHolders = 1000
 )
 
-var ErrSchemaValidateFailed = irr.Error("invalid schema for given type")
+var (
+	ErrSchemaValidateFailed = irr.Error("invalid schema for given type")
+	ErrBuildFailed          = irr.Error("build cache key failed")
+)
 
 // KeySchema used to build a real cache key
 //
@@ -94,14 +97,14 @@ func (ckb *KeySchema[ParamsTable]) Build(params ParamsTable) (string, error) {
 	// if params is a single value, convert it to single value map
 	name, start, end, _ := getNextPlaceholder(ckb.schema, 0)
 	if start == -1 {
-		return "", irr.Error("schema %s has no placeholders", ckb.schema)
+		return "", irr.Wrap(ErrBuildFailed, "schema %s has no placeholders", ckb.schema)
 	}
 	paramsMap = map[string]any{
 		name: fmt.Sprintf("%v", params),
 	}
 	_, start, _, _ = getNextPlaceholder(ckb.schema, end+1)
 	if start != -1 {
-		return "", irr.Error("value table not match, map= %v, params= %v", paramsMap, params)
+		return "", irr.Wrap(ErrBuildFailed, "value table not match, map= %v, params= %v", paramsMap, params)
 	}
 	return replacePlaceholders(ckb.schema, paramsMap)
 }

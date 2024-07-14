@@ -1,9 +1,10 @@
 package cachekey
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/khicago/irr"
 )
 
 // getPlaceholders returns a list of placeholders in the schema.
@@ -32,7 +33,7 @@ func getNextPlaceholder(schema string, startPos int) (string, int, int, error) {
 
 	end := strings.Index(schema[start:], "}")
 	if end == -1 {
-		return "", -1, -1, errors.New("malformed schema: unclosed placeholder")
+		return "", -1, -1, irr.Error("malformed schema: unclosed placeholder")
 	}
 	end += start
 
@@ -61,7 +62,7 @@ func replacePlaceholders(schema string, paramsMap map[string]any) (string, error
 
 		fieldValue, exists := paramsMap[placeholderName]
 		if !exists {
-			return "", fmt.Errorf("field %s does not exist, paramsMap= %+v", placeholderName, paramsMap)
+			return "", irr.Error("field %s does not exist, paramsMap= %+v", placeholderName, paramsMap)
 		}
 		result.WriteString(fmt.Sprintf("%v", fieldValue))
 
